@@ -86,7 +86,11 @@ export default class implements PerfettoPlugin {
             getInitialColumns,
           ),
       });
-      trace.tracks.registerTrack({uri, renderer, tags: {upid}});
+      trace.tracks.registerTrack({
+        uri,
+        renderer,
+        tags: {kinds: ['SmapsTrack'], upid},
+      });
 
       group.addChildInOrder(
         new TrackNode({

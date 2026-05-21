@@ -20,12 +20,12 @@ import {
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {
-  billboardKb,
+  billboardBytes,
   counterPoints,
-  formatKb,
   maxSeriesKb,
   niceKbInterval,
 } from '../../utils';
+import {formatBytesSi} from '../../../../base/bytes_format';
 import {Billboard} from '../../components/billboard';
 import {Panel} from '../../components/panel';
 import {Stack} from '../../../../widgets/stack';
@@ -228,17 +228,17 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
         Stack,
         {orientation: 'horizontal', spacing: 'large'},
         m(Billboard, {
-          ...billboardKb(bb.total),
+          ...billboardBytes(bb.total * 1024),
           label: 'Total Page Cache',
           desc: 'Derived: Active(file) + Inactive(file) from /proc/meminfo',
         }),
         m(Billboard, {
-          ...billboardKb(bb.dirty),
+          ...billboardBytes(bb.dirty * 1024),
           label: 'Dirty',
           desc: 'Source: Dirty from /proc/meminfo',
         }),
         m(Billboard, {
-          ...billboardKb(bb.mapped),
+          ...billboardBytes(bb.mapped * 1024),
           label: 'Mapped',
           desc: 'Source: Mapped from /proc/meminfo',
         }),
@@ -265,7 +265,7 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
             xAxisMin: data.xMin,
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => formatKb(v),
+            formatYValue: (v: number) => formatBytesSi(v * 1024),
             yAxisMinInterval: niceKbInterval(
               maxSeriesKb(pageCacheChartData.series),
             ),

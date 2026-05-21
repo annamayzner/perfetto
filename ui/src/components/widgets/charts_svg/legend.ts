@@ -19,7 +19,9 @@ import type {HTMLAttrs} from '../../../widgets/common';
 export interface ChartLegendEntryAttrs {
   readonly name: string;
   /** Optional trailing value (e.g. last data point). */
-  readonly value?: string;
+  readonly value?: m.Children;
+  /** Optional CSS colour for the trailing value text. */
+  readonly valueColor?: string;
   /** Optional colour swatch (CSS colour). */
   readonly swatch?: string;
   /** Render with the hidden/struck-through style. */
@@ -51,6 +53,7 @@ export const ChartLegend = {
       const {
         name,
         value,
+        valueColor,
         swatch,
         hidden,
         onToggle,
@@ -71,7 +74,8 @@ export const ChartLegend = {
             style: {backgroundColor: swatch},
           }),
         m('.pf-chart-svg__legend-name', name),
-        value !== undefined && m('.pf-chart-svg__legend-value', value),
+        value !== undefined &&
+          m('.pf-chart-svg__legend-value', {style: {color: valueColor}}, value),
       );
     },
   },

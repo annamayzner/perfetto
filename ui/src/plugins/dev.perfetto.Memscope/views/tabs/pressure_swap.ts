@@ -19,12 +19,8 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {
-  counterPoints,
-  formatKb,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../../utils';
+import {counterPoints, maxSeriesKb, niceKbInterval} from '../../utils';
+import {formatBytesSi} from '../../../../base/bytes_format';
 import {Panel} from '../../components/panel';
 import {Grid, GridCell, GridHeaderCell} from '../../../../widgets/grid';
 
@@ -278,7 +274,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           stacked: true,
           gridLines: 'both',
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
-          formatYValue: (v: number) => formatKb(v),
+          formatYValue: (v: number) => formatBytesSi(v * 1024),
           yAxisMinInterval: niceKbInterval(
             maxSeriesKb(swapChartData?.series ?? []),
           ),

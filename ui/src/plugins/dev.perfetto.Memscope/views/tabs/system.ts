@@ -19,7 +19,8 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../../utils';
+import {formatBytesSi} from '../../../../base/bytes_format';
 import {Billboard} from '../../components/billboard';
 import {Panel} from '../../components/panel';
 import {Stack} from '../../../../widgets/stack';
@@ -199,27 +200,27 @@ export function renderSystemTab(session: LiveSession): m.Children {
     bb !== undefined &&
       m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
         m(Billboard, {
-          ...billboardKb(bb.totalKb),
+          ...billboardBytes(bb.totalKb * 1024),
           label: 'MemTotal',
           desc: 'Total physical RAM',
         }),
         m(Billboard, {
-          ...billboardKb(bb.availableKb),
+          ...billboardBytes(bb.availableKb * 1024),
           label: 'MemAvailable',
           desc: 'Available without swapping',
         }),
         m(Billboard, {
-          ...billboardKb(bb.anonKb),
+          ...billboardBytes(bb.anonKb * 1024),
           label: 'Anon',
           desc: 'Active(anon) + Inactive(anon)',
         }),
         m(Billboard, {
-          ...billboardKb(bb.fileCacheKb),
+          ...billboardBytes(bb.fileCacheKb * 1024),
           label: 'Page Cache',
           desc: 'File LRU \u2212 Shmem',
         }),
         m(Billboard, {
-          ...billboardKb(bb.freeKb),
+          ...billboardBytes(bb.freeKb * 1024),
           label: 'MemFree',
           desc: 'Completely unused RAM',
         }),
@@ -247,7 +248,7 @@ export function renderSystemTab(session: LiveSession): m.Children {
             xAxisMin: data.xMin,
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => formatKb(v),
+            formatYValue: (v: number) => formatBytesSi(v * 1024),
             yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
           })
         : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),

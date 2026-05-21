@@ -34,6 +34,7 @@ export interface CursorTooltipAttrs extends HTMLAttrs {
   readonly position?: PopupPosition;
   // Distance in px between the tooltip and the cursor. Default = 8.
   readonly offset?: number;
+  readonly skidding?: number;
 }
 
 class VElement implements VirtualElement {
@@ -132,7 +133,7 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
   }
 
   private createOrUpdatePopper(attrs: CursorTooltipAttrs) {
-    const {position = PopupPosition.Right, offset = 8} = attrs;
+    const {position = PopupPosition.Right, offset = 8, skidding = 0} = attrs;
 
     // Custom modifier to hide the tooltip when our canary - and hence the
     // tooltip's parent - is not visible. This can be due to the canary or one
@@ -161,7 +162,7 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
         {
           name: 'offset',
           options: {
-            offset: [0, offset], // Shift away from cursor
+            offset: [skidding, offset], // Shift right and down from cursor
           },
         },
         hideOnInvisible,

@@ -23,11 +23,29 @@ interface AnchorAttrs extends HTMLAnchorAttrs {
 
   // Optional icon to show at the start of the content.
   readonly startIcon?: string;
+
+  // When true, the anchor is greyed out and non-interactive (no href, no
+  // click handlers).
+  readonly disabled?: boolean;
 }
 
 export class Anchor implements m.ClassComponent<AnchorAttrs> {
   view({attrs, children}: m.CVnode<AnchorAttrs>) {
-    const {icon, startIcon, ...htmlAttrs} = attrs;
+    const {icon, startIcon, disabled, ...htmlAttrs} = attrs;
+
+    if (disabled) {
+      // Strip the interactive attributes so the anchor can't be navigated or
+      // clicked while disabled.
+      const {href, onclick, target, ...rest} = htmlAttrs;
+      return m(
+        'a.pf-anchor.pf-anchor--disabled',
+        {...rest, 'aria-disabled': 'true'},
+        startIcon &&
+          m(Icon, {icon: startIcon, className: 'pf-anchor__icon--start'}),
+        children,
+        icon && m(Icon, {icon, className: 'pf-anchor__icon--end'}),
+      );
+    }
 
     return m(
       'a.pf-anchor',
