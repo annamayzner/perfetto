@@ -418,6 +418,17 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
       smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
+
+  // Remember an in-process producer's machine so the service can attribute its
+  // own packets to it (see SetServiceTracePacketHeader), leaving a
+  // single-machine in-process trace with no separate host machine. Relayed
+  // producers connect with in_process=false and carry a remote machine id; they
+  // must not redirect the host service's own packets, so only an in-process
+  // producer is adopted here. A default machine id is fine to store; the stamp
+  // decision is made at emit time.
+  if (in_process)
+    local_machine_id_ = client_identity.machine_id();
+
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
   endpoint->shmem_page_size_hint_bytes_ = shared_memory_page_size_hint_bytes;
 
@@ -1763,8 +1774,7 @@ void TracingServiceImpl::OnAllDataSourceStartedTimeout(TracingSessionID tsid) {
 
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   packet->set_timestamp(static_cast<uint64_t>(timestamp));
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
 
   size_t i = 0;
   protos::pbzero::TracingServiceEvent::DataSources* slow_data_sources =
@@ -3886,6 +3896,19 @@ bool TracingServiceImpl::SnapshotClocks(
   return true;
 }
 
+void TracingServiceImpl::SetServiceTracePacketHeader(
+    protos::pbzero::TracePacket* tp) {
+  tp->set_trusted_uid(static_cast<int32_t>(uid_));
+  tp->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  // When a local machine was adopted (an in-process producer with a non-default
+  // machine id; see ConnectProducer), attribute the service's own packets to it
+  // so the trace has no separate host machine. Host and relay sessions leave
+  // local_machine_id_ at the default and keep these packets on the host
+  // machine.
+  if (local_machine_id_ != kDefaultMachineID)
+    tp->set_machine_id(local_machine_id_);
+}
+
 void TracingServiceImpl::EmitClockSnapshot(
     TracingSession* tracing_session,
     TracingSession::ClockSnapshotData snapshot_data,
@@ -3909,8 +3932,7 @@ void TracingServiceImpl::EmitClockSnapshot(
     c->set_timestamp(clock_id_and_ts.timestamp);
   }
 
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
@@ -3937,8 +3959,7 @@ void TracingServiceImpl::EmitSyncMarker(std::vector<TracePacket>* packets) {
 void TracingServiceImpl::EmitStats(TracingSession* tracing_session,
                                    std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
   GetTraceStats(tracing_session).Serialize(packet->set_trace_stats());
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
@@ -4028,8 +4049,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
 void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,
                                   std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
   auto* uuid = packet->set_trace_uuid();
   uuid->set_lsb(tracing_session->trace_uuid.lsb());
   uuid->set_msb(tracing_session->trace_uuid.msb());
@@ -4042,8 +4062,7 @@ void TracingServiceImpl::MaybeEmitTraceConfig(
   if (tracing_session->did_emit_initial_packets)
     return;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
   tracing_session->config.Serialize(packet->set_trace_config());
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
@@ -4092,8 +4111,7 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   if (!sys_info.android_serial_console.empty())
     info->set_android_serial_console(sys_info.android_serial_console);
 
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
@@ -4125,8 +4143,7 @@ void TracingServiceImpl::EmitTraceProvenance(
       sequence_proto->set_producer_id(static_cast<int32_t>(producer_id));
     }
   }
-  packet->set_trusted_uid(static_cast<int32_t>(uid_));
-  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SetServiceTracePacketHeader(packet.get());
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
@@ -4172,8 +4189,7 @@ void TracingServiceImpl::EmitLifecycleEvents(
     for (int64_t ts : event.timestamps) {
       protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
       packet->set_timestamp(static_cast<uint64_t>(ts));
-      packet->set_trusted_uid(static_cast<int32_t>(uid_));
-      packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+      SetServiceTracePacketHeader(packet.get());
 
       auto* service_event = packet->set_service_event();
       service_event->AppendVarInt(event.field_id, 1);
@@ -4199,8 +4215,7 @@ void TracingServiceImpl::EmitLifecycleEvents(
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
     int64_t ts = tracing_session->buffer_cloned_timestamps[i];
     packet->set_timestamp(static_cast<uint64_t>(ts));
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SetServiceTracePacketHeader(packet.get());
 
     auto* service_event = packet->set_service_event();
     service_event->set_buffer_cloned(static_cast<uint32_t>(i));
@@ -4329,8 +4344,7 @@ void TracingServiceImpl::EmitExtensionDescriptors(
     std::vector<TracePacket>* packets) {
   for (const auto& desc : init_opts_.extension_descriptors) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SetServiceTracePacketHeader(packet.get());
     auto* ext = packet->set_extension_descriptor();
     if (desc.gzipped) {
       ext->set_extension_set_gzip(desc.start, desc.size);
@@ -4362,8 +4376,7 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
     trigger->set_stop_delay_ms(info.trigger_delay_ms);
 
     packet->set_timestamp(info.boot_time_ns);
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SetServiceTracePacketHeader(packet.get());
     SerializeAndAppendPacket(packets, packet.SerializeAsArray());
   }
 }
@@ -4384,8 +4397,7 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
     trigger->set_stop_delay_ms(info.trigger_delay_ms);
 
     packet->set_timestamp(info.boot_time_ns);
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SetServiceTracePacketHeader(packet.get());
     SerializeAndAppendPacket(packets, packet.SerializeAsArray());
     ++tracing_session->num_triggers_emitted_into_trace;
   }
